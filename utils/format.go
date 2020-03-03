@@ -6,11 +6,6 @@ import (
 	"strconv"
 )
 
-type FileSystemScanner interface {
-	Scan(path string)
-	Print() error
-}
-
 func ByteCountDecimal(b int64) string {
 	const unit = 1024
 	if b < unit {

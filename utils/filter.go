@@ -13,7 +13,7 @@ func (f *Filters) Append(fn func(f os.FileInfo) bool) {
 	f.filters = append(f.filters, fn)
 }
 
-func (f *Filters) filter(file os.FileInfo) bool {
+func (f *Filters) Filter(file os.FileInfo) bool {
 	for _, fn := range f.filters {
 		if !fn(file) {
 			return false

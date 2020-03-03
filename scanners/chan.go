@@ -1,6 +1,7 @@
-package utils
+package scanners
 
 import (
+	"andreyladmj/filessystemsnap/utils"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -13,7 +14,7 @@ type DirsChanScanner struct {
 	wg                *sync.WaitGroup
 	maxGoroutines     uint8
 	currentGoroutines uint8
-	rootDir           *Dir
+	rootDir           *utils.File
 }
 
 func NewDirsChanScanner(maxGoroutines uint8) DirsChanScanner {
@@ -21,12 +22,12 @@ func NewDirsChanScanner(maxGoroutines uint8) DirsChanScanner {
 }
 
 func (ds *DirsChanScanner) Scan(path string) {
-	ds.rootDir = &Dir{path: path}
+	ds.rootDir = &utils.File{Path: path}
 	ds.ReadDir(ds.rootDir)
 	ds.wg.Wait()
 }
 
-func (ds *DirsChanScanner) Print(f func(d *Dir) string) error {
+func (ds *DirsChanScanner) Print(f func(d *utils.File) string) error {
 	if ds.rootDir == nil {
 		return errors.New("Root Dir is nil")
 	}
@@ -35,26 +36,27 @@ func (ds *DirsChanScanner) Print(f func(d *Dir) string) error {
 	return nil
 }
 
-func (ds *DirsChanScanner) ReadDir(dir *Dir) {
-	ch := make(chan interface{})
+func (ds *DirsChanScanner) ReadDir(dir *utils.File) {
+	ch := make(chan *utils.File)
 
-	go func(dirname string, ch chan interface{}) {
+	go func(dirname string, ch chan *utils.File) {
 		ds.wg.Add(1)
 		defer ds.wg.Done()
 
-		files, err := ioutil.ReadDir(dir.path)
+		files, err := ioutil.ReadDir(dir.Path)
 		if err != nil {
 			log.Fatal(err)
 		}
+
 		for _, f := range files {
-			fullpath := path.Join(dir.path, f.Name())
+			fullpath := path.Join(dir.Path, f.Name())
 
 			if f.IsDir() {
-				d := NewDir(f, fullpath)
+				d := utils.NewFile(f, fullpath)
 
 				if ds.currentGoroutines < ds.maxGoroutines {
 					ds.wg.Add(1)
-					go func(d1 *Dir) {
+					go func(d1 *utils.File) {
 						ds.ReadDir(d1)
 						defer ds.wg.Done()
 					}(d)
@@ -62,24 +64,15 @@ func (ds *DirsChanScanner) ReadDir(dir *Dir) {
 					ds.ReadDir(d)
 				}
 				ch <- d
-				//dir.appendDir(d)
 			} else {
-				ch <- NewFile(f, fullpath)
-				//dir.appendFile()
+				ch <- utils.NewFile(f, fullpath)
 			}
 		}
 		close(ch)
 
-	}(dir.path, ch)
+	}(dir.Path, ch)
 
-	for subd := range ch {
-		fmt.Println(subd)
-		if d, ok := subd.(*Dir); ok {
-			dir.appendDir(d)
-		} else if f, ok := subd.(*File); ok {
-			dir.appendFile(f)
-		} else {
-			log.Fatal("cannot convert types")
-		}
+	for file := range ch {
+		dir.Append(file)
 	}
 }
