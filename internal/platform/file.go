@@ -1,4 +1,4 @@
-package utils
+package platform
 
 import (
 	"fmt"
@@ -89,6 +89,10 @@ func (d *File) CalcAllObjects() int {
 	return n
 }
 
-func NewFile(f os.FileInfo, fullpath string) *File {
+func NewFileFromFileInfo(f os.FileInfo, fullpath string) *File {
 	return &File{Name: f.Name(), Path: fullpath, Size: int(f.Size()), IsDir: f.IsDir()}
+}
+
+func NewFile(name string, fullpath string, size int, isDir bool) *File {
+	return &File{Name: name, Path: fullpath, Size: size, IsDir: isDir}
 }

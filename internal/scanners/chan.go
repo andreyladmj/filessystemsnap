@@ -1,11 +1,10 @@
 package scanners
 
 import (
-	"andreyladmj/filessystemsnap/utils"
+	"andreyladmj/filessystemsnap/internal/platform"
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"path"
 	"sync"
 )
@@ -14,7 +13,7 @@ type DirsChanScanner struct {
 	wg                *sync.WaitGroup
 	maxGoroutines     uint8
 	currentGoroutines uint8
-	rootDir           *utils.File
+	rootDir           *platform.File
 }
 
 func NewDirsChanScanner(maxGoroutines uint8) DirsChanScanner {
@@ -22,12 +21,12 @@ func NewDirsChanScanner(maxGoroutines uint8) DirsChanScanner {
 }
 
 func (ds *DirsChanScanner) Scan(path string) {
-	ds.rootDir = &utils.File{Path: path}
+	ds.rootDir = &platform.File{Path: path}
 	ds.ReadDir(ds.rootDir)
 	ds.wg.Wait()
 }
 
-func (ds *DirsChanScanner) Print(f func(d *utils.File) string) error {
+func (ds *DirsChanScanner) Print(f func(d *platform.File) string) error {
 	if ds.rootDir == nil {
 		return errors.New("Root Dir is nil")
 	}
@@ -36,27 +35,28 @@ func (ds *DirsChanScanner) Print(f func(d *utils.File) string) error {
 	return nil
 }
 
-func (ds *DirsChanScanner) ReadDir(dir *utils.File) {
-	ch := make(chan *utils.File)
+func (ds *DirsChanScanner) ReadDir(dir *platform.File) {
+	ch := make(chan *platform.File)
 
-	go func(dirname string, ch chan *utils.File) {
+	go func(dirname string, ch chan *platform.File) {
 		ds.wg.Add(1)
 		defer ds.wg.Done()
 
 		files, err := ioutil.ReadDir(dir.Path)
 		if err != nil {
-			log.Fatal(err)
+			fmt.Println("ERROR", err)
+			return
 		}
 
 		for _, f := range files {
 			fullpath := path.Join(dir.Path, f.Name())
 
 			if f.IsDir() {
-				d := utils.NewFile(f, fullpath)
+				d := platform.NewFile(f.Name(), fullpath, int(f.Size()), f.IsDir())
 
 				if ds.currentGoroutines < ds.maxGoroutines {
 					ds.wg.Add(1)
-					go func(d1 *utils.File) {
+					go func(d1 *platform.File) {
 						ds.ReadDir(d1)
 						defer ds.wg.Done()
 					}(d)
@@ -65,7 +65,7 @@ func (ds *DirsChanScanner) ReadDir(dir *utils.File) {
 				}
 				ch <- d
 			} else {
-				ch <- utils.NewFile(f, fullpath)
+				ch <- platform.NewFile(f.Name(), fullpath, int(f.Size()), f.IsDir())
 			}
 		}
 		close(ch)

@@ -1,4 +1,4 @@
-package utils
+package platform
 
 import (
 	"fmt"
@@ -71,7 +71,7 @@ func PrintLikeTreeFormatted(d *File, nesting int) string {
 			continue
 		}
 
-		p := getPrintedSymbol(i, d.GetFilesCount())
+		p := getPrintedSymbol(i, d.GetFilesCount()+d.GetDirsCount())
 		gap := getNestedLine(nesting)
 		s += fmt.Sprintf("%s%s%s (%s)\n", gap, p, f.Name, ByteFormat(float64(f.Size), 2))
 	}

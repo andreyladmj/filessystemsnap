@@ -1,19 +1,19 @@
-package utils
+package internal
 
 import (
-	"os"
+	"andreyladmj/filessystemsnap/internal/platform"
 	"strings"
 )
 
 type Filters struct {
-	filters []func(f os.FileInfo) bool
+	filters []func(f platform.File) bool
 }
 
-func (f *Filters) Append(fn func(f os.FileInfo) bool) {
+func (f *Filters) Append(fn func(f platform.File) bool) {
 	f.filters = append(f.filters, fn)
 }
 
-func (f *Filters) Filter(file os.FileInfo) bool {
+func (f *Filters) Filter(file platform.File) bool {
 	for _, fn := range f.filters {
 		if !fn(file) {
 			return false
@@ -35,9 +35,9 @@ func (f *Filters) FileSizeFilter(n float64, t string) {
 		n = 1024 * 1024 * 1024 * 1024 * n
 	}
 
-	f.Append(func(file os.FileInfo) bool {
-		if !file.IsDir() {
-			return file.Size() > int64(n)
+	f.Append(func(file platform.File) bool {
+		if !file.IsDir {
+			return file.Size > int(n)
 		}
 		return true
 	})

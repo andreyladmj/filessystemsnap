@@ -1,7 +1,8 @@
 package scanners
 
 import (
-	"andreyladmj/filessystemsnap/utils"
+	"andreyladmj/filessystemsnap/internal"
+	"andreyladmj/filessystemsnap/internal/platform"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -13,16 +14,16 @@ type DirsRecursiveScanner struct {
 	wg                *sync.WaitGroup
 	maxGoroutines     uint8
 	currentGoroutines uint8
-	rootDir           *utils.File
-	filters           *utils.Filters
+	rootDir           *platform.File
+	filters           *internal.Filters
 }
 
-func NewDirsRecursiveScanner(maxGoroutines uint8, filters *utils.Filters) DirsRecursiveScanner {
+func NewDirsRecursiveScanner(maxGoroutines uint8, filters *internal.Filters) DirsRecursiveScanner {
 	return DirsRecursiveScanner{wg: &sync.WaitGroup{}, maxGoroutines: maxGoroutines, filters: filters}
 }
 
 func (ds *DirsRecursiveScanner) Scan(path string) {
-	ds.rootDir = &utils.File{Path: path}
+	ds.rootDir = &platform.File{Path: path}
 	ds.ReadDir(ds.rootDir)
 	ds.wg.Wait()
 }
@@ -31,7 +32,7 @@ func (ds *DirsRecursiveScanner) DropEmptyDirs() {
 	ds.rootDir.DropEmptyDirs()
 }
 
-func (ds *DirsRecursiveScanner) Print(f func(d *utils.File) string) error {
+func (ds *DirsRecursiveScanner) Print(f func(d *platform.File) string) error {
 	if ds.rootDir == nil {
 		return errors.New("Root Dir is nil")
 	}
@@ -40,10 +41,10 @@ func (ds *DirsRecursiveScanner) Print(f func(d *utils.File) string) error {
 	return nil
 }
 
-func (ds *DirsRecursiveScanner) ReadDir(dir *utils.File) {
+func (ds *DirsRecursiveScanner) ReadDir(dir *platform.File) {
 	files, err := ioutil.ReadDir(dir.Path)
 	if err != nil {
-		//log.Fatal(err)
+		fmt.Println("ERROR", err)
 		return
 	}
 	for _, f := range files {
@@ -54,11 +55,11 @@ func (ds *DirsRecursiveScanner) ReadDir(dir *utils.File) {
 		fullpath := path.Join(dir.Path, f.Name())
 
 		if f.IsDir() {
-			d := utils.NewFile(f, fullpath)
+			d := platform.NewFile(f.Name(), fullpath, int(f.Size()), f.IsDir())
 
 			if ds.currentGoroutines < ds.maxGoroutines {
 				ds.wg.Add(1)
-				go func(d1 *utils.File) {
+				go func(d1 *platform.File) {
 					ds.ReadDir(d1)
 					defer ds.wg.Done()
 				}(d)
@@ -67,7 +68,7 @@ func (ds *DirsRecursiveScanner) ReadDir(dir *utils.File) {
 			}
 			dir.Append(d)
 		} else {
-			dir.Append(utils.NewFile(f, fullpath))
+			dir.Append(platform.NewFile(f.Name(), fullpath, int(f.Size()), f.IsDir()))
 		}
 	}
 }
