@@ -1,15 +1,16 @@
 package scanners
 
 import (
+	"andreyladmj/filessystemsnap/internal"
 	"andreyladmj/filessystemsnap/internal/platform"
 	"fmt"
-	//"sync"
 	"syscall"
 	"unsafe"
 )
 
 type FastScanner struct {
 	RootDir *platform.File
+	filters *internal.Filters
 }
 
 func NewFastScanner() FastScanner {
@@ -23,11 +24,11 @@ func (fs *FastScanner) Scan(dir string) {
 		Name:  dir,
 		Size:  0,
 		IsDir: true,
-		Files: ScanDir(dir),
+		Files: fs.ScanDir(dir),
 	}
 }
 
-func ScanDir(dir string) []*platform.File {
+func (fs *FastScanner) ScanDir(dir string) []*platform.File {
 	sysfd, err := syscall.Open(dir, syscall.O_RDONLY|syscall.O_NOCTTY|syscall.O_NONBLOCK|syscall.O_NOFOLLOW|syscall.O_CLOEXEC|syscall.O_DIRECTORY, 0)
 
 	if err != nil {
@@ -85,22 +86,25 @@ func ScanDir(dir string) []*platform.File {
 				continue
 			}
 
-			var fs syscall.Stat_t
-			statErr := syscall.Lstat(name, &fs)
+			var sfs syscall.Stat_t
+			statErr := syscall.Lstat(name, &sfs)
 			size := 0
 
 			if statErr == nil {
-				size = int(fs.Size)
+				size = int(sfs.Size)
 			}
 
 			fullPath := dir + "/" + name
 			file := new(platform.File)
 
-			if dirent.Type == syscall.DT_REG {
-				file = platform.NewFile(name, fullPath, size, false)
-			} else if dirent.Type == syscall.DT_DIR {
-				file = platform.NewFile(name, fullPath, size, true)
-				file.Files = ScanDir(fullPath)
+			file = platform.NewFile(name, fullPath, size, dirent.Type == syscall.DT_DIR) // syscall.DT_REG - reg file
+
+			if fs.filters != nil && !fs.filters.Filter(file) {
+				continue
+			}
+
+			if file.IsDir {
+				file.Files = fs.ScanDir(fullPath)
 			}
 
 			files = append(files, file)

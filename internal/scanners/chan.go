@@ -1,6 +1,7 @@
 package scanners
 
 import (
+	"andreyladmj/filessystemsnap/internal"
 	"andreyladmj/filessystemsnap/internal/platform"
 	"errors"
 	"fmt"
@@ -14,10 +15,15 @@ type DirsChanScanner struct {
 	maxGoroutines     uint8
 	currentGoroutines uint8
 	rootDir           *platform.File
+	filters           *internal.Filters
 }
 
-func NewDirsChanScanner(maxGoroutines uint8) DirsChanScanner {
-	return DirsChanScanner{wg: &sync.WaitGroup{}, maxGoroutines: maxGoroutines}
+func NewDirsChanScanner(maxGoroutines uint8) *DirsChanScanner {
+	return &DirsChanScanner{wg: &sync.WaitGroup{}, maxGoroutines: maxGoroutines}
+}
+
+func (ds *DirsChanScanner) SetFilter(f *internal.Filters) {
+	ds.filters = f
 }
 
 func (ds *DirsChanScanner) Scan(path string) {
@@ -54,11 +60,17 @@ func (ds *DirsChanScanner) ReadDir(dir *platform.File) {
 			if f.IsDir() {
 				d := platform.NewFile(f.Name(), fullpath, int(f.Size()), f.IsDir())
 
+				if ds.filters != nil && !ds.filters.Filter(d) {
+					continue
+				}
+
 				if ds.currentGoroutines < ds.maxGoroutines {
+					ds.currentGoroutines++
 					ds.wg.Add(1)
 					go func(d1 *platform.File) {
 						ds.ReadDir(d1)
-						defer ds.wg.Done()
+						ds.currentGoroutines--
+						ds.wg.Done()
 					}(d)
 				} else {
 					ds.ReadDir(d)
